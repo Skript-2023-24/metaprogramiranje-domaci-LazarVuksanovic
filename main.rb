@@ -8,6 +8,7 @@ class Table
   include Enumerable
 
   attr_accessor :ws
+  attr_accessor :selected_col
 
   def initialize(ws)
     @ws = ws
@@ -43,7 +44,11 @@ class Table
 
     col = []
     @ws.rows.each_with_index do |row, idx|
-      col.append(row[header_index].to_i) unless idx == 0
+      if row[header_index].match(/[1-9][0-9]*/).to_s.size == row[header_index].size
+        col.append(row[header_index].to_i) unless idx == 0
+      else
+        col.append(row[header_index]) unless idx == 0
+      end
     end
     col
   end
@@ -61,23 +66,36 @@ class Table
     @ws.reload
   end
 
+  def sum
+    @selected_col.sum
+  end
+
+  def avg
+    @selected_col.sum(0.0) / @selected_col.size
+  end
+
   private
 
   def define_column_methods()
     @ws.rows[0].each do |header|
       sym = header.gsub(' ', '_').downcase.to_sym
-      self.class.send(:attr_accessor, sym)
-      self.send("#{sym}=", self[header])
+
+      self.class.send(:define_method, sym) do
+        @selected_col = self[header]
+        self
+      end
     end
-
   end
 
-end
-
-class Array
-  def avg
-    self.sum(0.0) / self.size
+  def method_missing(key, *args)
+    @selected_col.each_with_index do |e, i|
+      if e == key.to_s.upcase.gsub('_', ' ')
+        return @ws.rows[i+1]
+      end
+    end
+    nil
   end
+
 end
 
 table = Table.new(ws)
@@ -88,8 +106,7 @@ table = Table.new(ws)
 # table["Druga kolona"][1] = 100
 # p "posle " + table["Druga kolona"][1]
 # p table["Druga kolona"]
-p "prva kolona  " + table.prva_kolona.to_s
-p "suma  " + table.prva_kolona.sum.to_s
-p "avg  " + table.prva_kolona.avg.to_s
-
-#table.nice_print
+#p "prva kolona  " + table.prva_kolona.to_s
+p "suma  #{table.redni_broj.sum}"
+p "avg  #{table.redni_broj.avg}"
+p table.index.rn_1021
