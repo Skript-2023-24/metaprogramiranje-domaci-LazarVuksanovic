@@ -67,15 +67,6 @@ class Table
     @rows[i]
   end
 
-  def each
-    @rows.each do |row|
-      next if row.empty?
-      row.each do |cell|
-        yield cell
-      end
-    end
-  end
-
   def [](column_header)
     header_index = @rows[0].index(column_header)
 
@@ -111,9 +102,28 @@ class Table
     @ws.reload
   end
 
-  def map
-    @selected_col.each do |cell|
-      yield cell
+  def each
+    @rows.each do |row|
+      next if row.empty?
+      row.each do |cell|
+        yield cell
+      end
+    end
+  end
+
+  def map(&block)
+    @selected_col.map(&block)
+  end
+
+  def select(&block)
+    @selected_col.select(&block)
+  end
+
+  def reduce(initial = nil, &block)
+    if initial.nil?
+      @selected_col.reduce(&block)
+    else
+      @selected_col.reduce(initial, &block)
     end
   end
 
@@ -184,7 +194,17 @@ table = Table.new(ws)
 # p "avg  #{table.redni_broj.avg}" #️✔
 # p table.index.rn_1021 #️✔
 
-# table.ime_prezime.map do |cell| #️✔
-#   p cell
+# map = table.redni_broj.map do |cell| #️✔
+#   cell += 10000
 # end
-table.nice_print
+# p map
+
+# select = table.redni_broj.select do |cell| #️✔
+#   cell.even?
+# end
+# p select
+
+# reduce = table.redni_broj.reduce(0) do |sum, cell|
+#   sum + cell
+# end
+# p reduce
