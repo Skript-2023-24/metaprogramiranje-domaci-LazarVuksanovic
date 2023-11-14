@@ -25,16 +25,17 @@ class Table
   def set_rows()
     @ws.rows.each_with_index do |ws_row, i|
       row = []
-      in_table = false
+      in_table = false, total_row = false
       ws_row.each_with_index do |cell, j|
         if (cell != "" && !in_table) || in_table
-          row << cell #Cell.new(i, j, cell)
+          row << cell
           in_table = true
+          total_row = true if cell == "total" || cell == "subtotal"
         end
       end
-      @null_rows << i if row == []
+      @null_rows << i if row == [] || total_row
       @rows << row
-      in_table = false
+      in_table = false, total_row = false
     end
   end
 
@@ -184,6 +185,7 @@ end
 
 table = Table.new(ws)
 
+# p table.rows #️✔
 # p table["Ime prezime"] #️✔
 # p table["Ime prezime"][144] #️✔
 # table.[]=("Redni broj", 144, 100000) #️✔
@@ -204,7 +206,7 @@ table = Table.new(ws)
 # end
 # p select
 
-# reduce = table.redni_broj.reduce(0) do |sum, cell|
+# reduce = table.redni_broj.reduce(0) do |sum, cell| #️✔
 #   sum + cell
 # end
 # p reduce
