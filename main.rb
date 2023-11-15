@@ -1,5 +1,31 @@
 require "google_drive"
 
+class Column
+  include Enumerable
+
+  attr_accessor :val
+
+  def initialize(val, name, table)
+    @val = val
+    @name = name
+    @table = table
+  end
+
+  def [](i)
+    @val[i]
+  end
+
+  def []=(i, val)
+    @val[i] = val
+    @table.[]=(@name, i, val)
+    @val[i]
+  end
+
+  def to_s
+    @val.to_s
+  end
+end
+
 class Table
   include Enumerable
 
@@ -85,7 +111,7 @@ class Table
         col.append(row[header_index]) unless idx == 0
       end
     end
-    col
+    Column.new(col, column_header, self)
   end
 
   def []=(column_header, index, val)
@@ -110,27 +136,27 @@ class Table
   end
 
   def map(&block)
-    @selected_col.map(&block)
+    @selected_col.val.map(&block)
   end
 
   def select(&block)
-    @selected_col.select(&block)
+    @selected_col.val.select(&block)
   end
 
   def reduce(initial = nil, &block)
     if initial.nil?
-      @selected_col.reduce(&block)
+      @selected_col.val.reduce(&block)
     else
-      @selected_col.reduce(initial, &block)
+      @selected_col.val.reduce(initial, &block)
     end
   end
 
   def sum
-    @selected_col.sum
+    @selected_col.val.sum
   end
 
   def avg
-    @selected_col.sum(0.0) / @selected_col.size
+    @selected_col.val.sum(0.0) / @selected_col.val.size
   end
 
   def to_s
@@ -197,7 +223,7 @@ class Table
   end
 
   def method_missing(key, *args)
-    @selected_col.each_with_index do |e, i|
+    @selected_col.val.each_with_index do |e, i|
       if e == key.to_s.upcase.gsub('_', ' ')
         return @ws.rows[ignore_empty_rows(i + offset_i)][offset_j..-1]
       end
@@ -225,14 +251,15 @@ ws1 = session.spreadsheet_by_key("1HndlZySAJ2M1mq9YS4H3pALq7mi3VXSIiR_ELgFJ7tI")
 table = Table.new(ws)
 table2 = Table.new(ws1)
 
-table3 = table + table2 #️✔
-table3 = table - table2 #️✔
+# table3 = table + table2 #️✔
+# table3 = table - table2 #️✔
+
 
 # p table.rows #️✔
-# p table["Ime prezime"] #️✔
+# puts table["Ime prezime"] #️✔
 # p table["Ime prezime"][144] #️✔
 # table.[]=("Redni broj", 144, 100000) #️✔
-# table["Redni broj"][1]= 10000
+# table["Redni broj"][1]= 10000 #️✔
 # table.index; p table.selected_col #️✔
 
 # p "suma  #{table.redni_broj.sum}" #️✔
