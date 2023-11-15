@@ -15,26 +15,27 @@ table4 = table - table2
 
 puts "Rezultat sabiranja:\n#{table3.rows}\n\n\n"
 puts "Kolona 'Ime prezime' u prvoj tabeli\n#{table["Ime prezime"]}\n\n\n"
-puts "144 element u koloni iznad #{table["Ime prezime"][144]}"
+puts "37 element u koloni iznad #{table["Ime prezime"][37]}"
 
-table["Ime prezime"][144] = "Tanasko Rajic"
-puts "Nakon promene vrednosti #{table["Ime prezime"][144]}\n\n\n"
+table["Ime prezime"][37] = "Tanasko Rajic"
+puts "Nakon promene vrednosti #{table["Ime prezime"][37]}\n\n\n"
 
-puts "Suma kolone: #{table.redni_broj.sum}"
-puts "Avg kolone:  #{table.redni_broj.avg}"
+puts "Suma kolone: #{table.ocena.sum}"
+puts "Avg kolone:  #{table.ocena.avg}"
 puts "Prikaz trazenog reda: #{table.index.rn_1021}\n\n\n"
 
-map = table.redni_broj.map do |cell|
-  cell += 10000
+map = table.ime_prezime.map do |cell|
+  "Student #{cell}"
 end
 puts "Map:\n#{map}\n\n\n"
 
-select = table.redni_broj.select do |cell|
-  cell.even?
+select = table.ocena.select do |cell|
+  cell > 5
 end
 puts "Select: #{select}"
 
-reduce = table.redni_broj.reduce(0) do |sum, cell|
-  sum + cell
+reduce = table.bodovi.reduce(0) do |sum, cell|
+  sum += 1 if cell.to_f > 5
+  sum
 end
 puts "Reduce: #{reduce}\n\n"
