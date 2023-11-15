@@ -1,45 +1,41 @@
 require "google_drive"
 
-session = GoogleDrive::Session.from_config("config.json")
-ws = session.spreadsheet_by_key("1HndlZySAJ2M1mq9YS4H3pALq7mi3VXSIiR_ELgFJ7tI").worksheets[0]
-
 class Table
   include Enumerable
 
   attr_accessor :ws
   attr_accessor :selected_col
-  attr_accessor :rows
   attr_accessor :offset_i
   attr_accessor :offset_j
   attr_accessor :null_rows
 
   def initialize(ws)
     @ws = ws
-    @rows = []
     @null_rows = []
-    offsets()
-    set_rows()
-    define_column_methods()
+
+    setup_table()
   end
 
-  def set_rows()
+  def setup_table()
+
+    return if @ws.rows.empty?
+    set_offsets()
+    define_column_methods()
+
     @ws.rows.each_with_index do |ws_row, i|
-      row = []
-      in_table = false, total_row = false
+      next if i < offset_i
+      total_row = false
+      null_row = true
       ws_row.each_with_index do |cell, j|
-        if (cell != "" && !in_table) || in_table
-          row << cell
-          in_table = true
-          total_row = true if cell == "total" || cell == "subtotal"
-        end
+        next if j < offset_j
+        null_row = false if cell != ""
+        total_row = true if cell == "total" || cell == "subtotal"
       end
-      @null_rows << i if row == [] || total_row
-      @rows << row
-      in_table = false, total_row = false
+      @null_rows << i if null_row || total_row
     end
   end
 
-  def offsets()
+  def set_offsets()
     @ws.rows.each_with_index do |row, i|
       row.each_with_index do |cell, j|
         next if cell == ""
@@ -48,28 +44,33 @@ class Table
         return
       end
     end
-
   end
 
   def nice_print
-    @rows.each do |row|
+    @ws.rows.each_with_index do |row, i|
+      next if i < offset_i || @null_rows.include?(i)
       print_row = []
-      #next if row.empty?
-
-      row.each do |cell|
-        print_row << cell.to_s
+      row.each_with_index do |cell, j|
+        print_row << cell.to_s unless j < offset_j
       end
-
       p print_row
     end
   end
 
   def row(i)
-    @rows[i]
+    @ws.rows[i + offset_i][offset_j..-1]
+  end
+
+  def rows
+    r = []
+    (1..@ws.rows.size-offset_i-1).each do |i|
+      r << self.row(i) unless @null_rows.include?(i + offset_i)
+    end
+    r
   end
 
   def [](column_header)
-    header_index = @rows[0].index(column_header)
+    header_index = @ws.rows[offset_i].index(column_header)
 
     if header_index.nil?
       puts "No such header."
@@ -77,8 +78,8 @@ class Table
     end
 
     col = []
-    @rows.each_with_index do |row, idx|
-      next if row.empty?
+    @ws.rows.each_with_index do |row, idx|
+      next if @null_rows.include?(idx) || idx <= offset_i
       if row[header_index].match(/[1-9][0-9]*|0/).to_s.size == row[header_index].size
         col.append(row[header_index].to_i) unless idx == 0
       else
@@ -91,23 +92,22 @@ class Table
   def []=(column_header, index, val)
     index = ignore_empty_rows(index)
 
-    header_index = @rows[0].index(column_header)
+    header_index = @ws.rows[offset_i].index(column_header)
     if header_index.nil?
       puts "No such header."
       return
     end
 
     # dodajemo 1 na indexe zato sto u ws indexiranje krece od 1
-    @ws[offset_i + index+1, offset_j + header_index+1] = val
-    @ws.save
-    @ws.reload
+    @ws[offset_i + index+1, offset_j + header_index] = val
+    save()
   end
 
   def each
-    @rows.each do |row|
-      next if row.empty?
-      row.each do |cell|
-        yield cell
+    @ws.rows.each_with_index do |row, i|
+      next if row.empty? || i < offset_i
+      row.each_with_index do |cell, j|
+        yield cell unless j < offset_j
       end
     end
   end
@@ -137,21 +137,46 @@ class Table
   end
 
   def to_s
-    f = ""
-    @rows.each do |row|
+    f = []
+    @ws.rows.each_with_index do |row, i|
+      next if i < offset_i
       print_row = []
-      row.each do |cell|
-        print_row << cell.to_s
+      row.each_with_index do |cell, j|
+        print_row << cell unless j < offset_j
       end
-      f << print_row.to_s
+      f << print_row
     end
-    f
+    f.to_s
   end
+
+  def save
+    @ws.save
+    @ws.reload
+  end
+
+  def +(table2)
+
+    return unless self.row(0) == table2.row(0)
+
+    new_ws = @ws.spreadsheet.add_worksheet("Resultant Sheet")
+
+    combined_rows = self.rows | table2.rows
+    combined_rows.each_with_index do |row, row_index|
+      row.each_with_index do |cell, col_index|
+        new_ws[row_index + 1, col_index + 1] = cell
+      end
+    end
+
+    result = Table.new(new_ws)
+    result.save
+    result
+  end
+
 
   private
 
   def define_column_methods()
-    @rows[0].each do |header|
+    @ws.rows[offset_i].each do |header|
       sym = header.gsub(' ', '_').downcase.to_sym
 
       self.class.send(:define_method, sym) do
@@ -164,7 +189,7 @@ class Table
   def method_missing(key, *args)
     @selected_col.each_with_index do |e, i|
       if e == key.to_s.upcase.gsub('_', ' ')
-        return @rows[ignore_empty_rows(i)]
+        return @ws.rows[ignore_empty_rows(i + offset_i)][offset_j..-1]
       end
     end
     nil
@@ -172,8 +197,8 @@ class Table
 
   def ignore_empty_rows(index)
     # dodajemo 1 na indexe zbog reda hedera
-    index +=1
-    if @null_rows
+    index += 1
+    if !@null_rows.empty?
       null_rows.each do |null_row|
         index += 1 if index >= null_row
       end
@@ -183,8 +208,14 @@ class Table
 
 end
 
-table = Table.new(ws)
+session = GoogleDrive::Session.from_config("config.json")
 
+ws = session.spreadsheet_by_key("1HndlZySAJ2M1mq9YS4H3pALq7mi3VXSIiR_ELgFJ7tI").worksheets[0]
+ws1 = session.spreadsheet_by_key("1HndlZySAJ2M1mq9YS4H3pALq7mi3VXSIiR_ELgFJ7tI").worksheets[1]
+
+table = Table.new(ws)
+table2 = Table.new(ws1)
+table3 = table + table2
 # p table.rows #️✔
 # p table["Ime prezime"] #️✔
 # p table["Ime prezime"][144] #️✔
