@@ -18,7 +18,6 @@ class Table
 
   def setup_table()
 
-    return if @ws.rows.empty?
     set_offsets()
     define_column_methods()
 
@@ -90,14 +89,12 @@ class Table
   end
 
   def []=(column_header, index, val)
-    index = ignore_empty_rows(index)
-
     header_index = @ws.rows[offset_i].index(column_header)
     if header_index.nil?
       puts "No such header."
       return
     end
-
+    index = ignore_empty_rows(index)
     # dodajemo 1 na indexe zato sto u ws indexiranje krece od 1
     @ws[offset_i + index+1, offset_j + header_index] = val
     save()
@@ -155,13 +152,11 @@ class Table
   end
 
   def +(table2)
-
     return unless self.row(0) == table2.row(0)
 
-    new_ws = @ws.spreadsheet.add_worksheet("Resultant Sheet")
-
-    combined_rows = self.rows | table2.rows
-    combined_rows.each_with_index do |row, row_index|
+    new_ws = @ws.spreadsheet.add_worksheet("#{self.ws.title} + #{table2.ws.title}")
+    result_rows = self.rows | table2.rows
+    result_rows.each_with_index do |row, row_index|
       row.each_with_index do |cell, col_index|
         new_ws[row_index + 1, col_index + 1] = cell
       end
@@ -172,13 +167,28 @@ class Table
     result
   end
 
+  def -(table2)
+
+    return unless self.row(0) == table2.row(0)
+
+    new_ws = @ws.spreadsheet.add_worksheet("#{self.ws.title} - #{table2.ws.title}")
+
+    result_rows = self.rows - table2.rows
+    result_rows.each_with_index do |row, row_index|
+      row.each_with_index do |cell, col_index|
+        new_ws[row_index + 1, col_index + 1] = cell
+      end
+    end
+    result = Table.new(new_ws)
+    result.save
+    result
+  end
 
   private
 
   def define_column_methods()
     @ws.rows[offset_i].each do |header|
       sym = header.gsub(' ', '_').downcase.to_sym
-
       self.class.send(:define_method, sym) do
         @selected_col = self[header]
         self
@@ -205,7 +215,6 @@ class Table
     end
     index
   end
-
 end
 
 session = GoogleDrive::Session.from_config("config.json")
@@ -215,7 +224,10 @@ ws1 = session.spreadsheet_by_key("1HndlZySAJ2M1mq9YS4H3pALq7mi3VXSIiR_ELgFJ7tI")
 
 table = Table.new(ws)
 table2 = Table.new(ws1)
-table3 = table + table2
+
+table3 = table + table2 #️✔
+table3 = table - table2 #️✔
+
 # p table.rows #️✔
 # p table["Ime prezime"] #️✔
 # p table["Ime prezime"][144] #️✔
